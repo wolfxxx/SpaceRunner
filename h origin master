@@ -1,0 +1,71 @@
+[1mdiff --git a/index.html b/index.html[m
+[1mnew file mode 100644[m
+[1mindex 0000000..86dc98a[m
+[1m--- /dev/null[m
+[1m+++ b/index.html[m
+[36m@@ -0,0 +1,65 @@[m
+[32m+[m[32m<!DOCTYPE html>[m
+[32m+[m[32m<html lang="en">[m
+[32m+[m[32m<head>[m
+[32m+[m[32m  <meta charset="UTF-8" />[m
+[32m+[m[32m  <meta name="viewport" content="width=device-width, initial-scale=1" />[m
+[32m+[m[32m  <title>Modern Space Invaders</title>[m
+[32m+[m[32m  <!-- Make all relative URLs resolve from src/ so existing paths continue to work -->[m
+[32m+[m[32m  <base href="src/">[m
+[32m+[m[32m  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000'/%3E%3Cpath d='M8 10h4v4H8v-4zm12 0h4v4h-4v-4zM6 14h20v4H6v-4zm4 4h4v4h-4v-4zm8 0h4v4h-4v-4z' fill='%2300ffff'/%3E%3C/svg%3E" />[m
+[32m+[m[32m  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>[m
+[32m+[m[32m  <style>[m
+[32m+[m[32m    html, body { height: 100%; margin: 0; background:#000; }[m
+[32m+[m[32m    body { display:flex; align-items:center; justify-content:center; }[m
+[32m+[m[32m    canvas { image-rendering: pixelated; border:2px solid #333; box-shadow:0 0 20px #0ff; filter: drop-shadow(0 0 8px #0ff) drop-shadow(0 0 3px #0ff); }[m
+[32m+[m[32m    #scanlines { position:fixed; inset:0; pointer-events:none; opacity:.16; mix-blend-mode:screen;[m
+[32m+[m[32m      background-image:repeating-linear-gradient(0deg, rgba(255,255,255,.09) 0px, rgba(255,255,255,.09) 1px, transparent 1px, transparent 3px); }[m
+[32m+[m[32m    #vignette { position:fixed; inset:0; pointer-events:none;[m
+[32m+[m[32m      background:radial-gradient(ellipse at center, rgba(0,0,0,0) 40%, rgba(0,0,0,0.35) 100%); }[m
+[32m+[m[32m  </style>[m
+[32m+[m[32m  <!-- Global leaderboard (Firebase) -->[m
+[32m+[m[32m  <script>[m
+[32m+[m[32m    window.FIREBASE_CONFIG = {[m
+[32m+[m[32m      apiKey: "AIzaSyBZW21lAJX2eisfjFtQDhIfBQg6gd4rzSQ",[m
+[32m+[m[32m      authDomain: "spaceinvadersscores-a9177.firebaseapp.com",[m
+[32m+[m[32m      projectId: "spaceinvadersscores-a9177",[m
+[32m+[m[32m      storageBucket: "spaceinvadersscores-a9177.firebasestorage.app",[m
+[32m+[m[32m      messagingSenderId: "551696066897",[m
+[32m+[m[32m      appId: "1:551696066897:web:1901c0860fec3f81f2cb70",[m
+[32m+[m[32m      measurementId: "G-EQ2NZ8WTS1"[m
+[32m+[m[32m    };[m
+[32m+[m[32m    // App Check site key (reCAPTCHA v3)[m
+[32m+[m[32m    window.FIREBASE_APPCHECK_SITE_KEY = "6LeWZr4rAAAAAD4Hq0vsxgn65FgefgwF4IyLTjIW";[m
+[32m+[m[32m    // If running locally, try to load a local-only debug token from src/local-dev.js[m
+[32m+[m[32m    (function(){[m
+[32m+[m[32m      var h = location.hostname;[m
+[32m+[m[32m      if(h === 'localhost' || h === '127.0.0.1'){[m
+[32m+[m[32m        var s = document.createElement('script');[m
+[32m+[m[32m        s.src = 'local-dev.js'; // resolved to src/local-dev.js by <base href="src/">[m
+[32m+[m[32m        document.head.appendChild(s);[m
+[32m+[m[32m      }[m
+[32m+[m[32m    })();[m
+[32m+[m[32m  </script>[m
+[32m+[m[32m  <script type="module" src="leaderboard.js"></script>[m
+[32m+[m[32m  <!-- Note: with <base href="src/"> these scripts resolve to src/music.js and src/game.js -->[m
+[32m+[m[32m</head>[m
+[32m+[m[32m<body>[m
+[32m+[m[32m  <div id="scanlines"></div>[m
+[32m+[m[32m  <div id="vignette"></div>[m
+[32m+[m[32m  <div id="volume-control" style="position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:100;">[m
+[32m+[m[32m    <label for="volume" style="color:#fff; font-family:monospace; margin-right:10px;">Volume:</label>[m
+[32m+[m[32m    <input type="range" id="volume" name="volume" min="0" max="100" value="50">[m
+[32m+[m[32m  </div>[m
+[32m+[m[32m  <script src="run-manager.js" data-experimental="roguelite"></script>[m
+[32m+[m[32m  <script src="post-run-summary.js" data-experimental="roguelite"></script>[m
+[32m+[m[32m  <script type="module" src="roguelite-init.js" data-experimental="roguelite"></script>[m
+[32m+[m[32m  <script src="music.js"></script>[m
+[32m+[m[32m  <script src="hangar-system.js"></script>[m
+[32m+[m[32m  <script src="game.js"></script>[m
+[32m+[m[32m</body>[m
+[32m+[m[32m<!--[m
+[32m+[m[32mThis root index.html enables GitHub Pages to serve the game from the repository root[m
+[32m+[m[32mwithout moving files out of src/. The <base href="src/"> ensures asset/script paths[m
+[32m+[m[32mcontinue to resolve relative to src/.[m
+[32m+[m[32m-->[m
+[32m+[m[32m</html>[m

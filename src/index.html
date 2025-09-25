@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Modern Space Invaders</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23000'/%3E%3Cpath d='M8 10h4v4H8v-4zm12 0h4v4h-4v-4zM6 14h20v4H6v-4zm4 4h4v4h-4v-4zm8 0h4v4h-4v-4z' fill='%2300ffff'/%3E%3C/svg%3E" />
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+  <style>
+    html, body { height: 100%; margin: 0; background:#000; }
+    body { display:flex; align-items:center; justify-content:center; }
+    canvas { image-rendering: pixelated; border:2px solid #333; box-shadow:0 0 20px #0ff; filter: drop-shadow(0 0 8px #0ff) drop-shadow(0 0 3px #0ff); }
+    #scanlines { position:fixed; inset:0; pointer-events:none; opacity:.16; mix-blend-mode:screen;
+      background-image:repeating-linear-gradient(0deg, rgba(255,255,255,.09) 0px, rgba(255,255,255,.09) 1px, transparent 1px, transparent 3px); }
+    #vignette { position:fixed; inset:0; pointer-events:none;
+      background:radial-gradient(ellipse at center, rgba(0,0,0,0) 40%, rgba(0,0,0,0.35) 100%); }
+  </style>
+</head>
+<body>
+  <!-- Global leaderboard (Firebase) for local dev too -->
+  <script>
+    window.FIREBASE_CONFIG = {
+      apiKey: "AIzaSyBZW21lAJX2eisfjFtQDhIfBQg6gd4rzSQ",
+      authDomain: "spaceinvadersscores-a9177.firebaseapp.com",
+      projectId: "spaceinvadersscores-a9177",
+      storageBucket: "spaceinvadersscores-a9177.firebasestorage.app",
+      messagingSenderId: "551696066897",
+      appId: "1:551696066897:web:1901c0860fec3f81f2cb70",
+      measurementId: "G-EQ2NZ8WTS1"
+    };
+    // App Check site key (reCAPTCHA v3)
+    window.FIREBASE_APPCHECK_SITE_KEY = "6LeWZr4rAAAAAD4Hq0vsxgn65FgefgwF4IyLTjIW";
+    // If running locally, try to load a local-only debug token from src/local-dev.js
+    (function(){
+      var h = location.hostname;
+      if(h === 'localhost' || h === '127.0.0.1'){
+        var s = document.createElement('script');
+        s.src = 'local-dev.js';
+        document.head.appendChild(s);
+      }
+    })();
+    // Roguelite feature flag (default off). Enable via ?roguelite=1 for local testing.
+    (function(){
+      var qs = (location.search || '');
+      var forcedOn = qs.indexOf('roguelite=1') !== -1;
+      var forcedOff = qs.indexOf('roguelite=0') !== -1;
+      var stored = null;
+      try { stored = localStorage.getItem('si_roguelite'); } catch (e) { stored = null; }
+      var enabled = false;
+      if(forcedOn) enabled = true;
+      else if(forcedOff) enabled = false;
+      else if(stored !== null) enabled = stored === '1';
+      window.ENABLE_ROGUELITE = enabled;
+      window.SET_ROGUELITE_MODE = function(on){
+        window.ENABLE_ROGUELITE = !!on;
+        try { localStorage.setItem('si_roguelite', window.ENABLE_ROGUELITE ? '1' : '0'); } catch (e) {}
+      };
+    })();
+  </script>
+  <script type="module" src="leaderboard.js"></script>
+  <script src="run-manager.js" data-experimental="roguelite"></script>
+  <script src="post-run-summary.js" data-experimental="roguelite"></script>
+  <script type="module" src="roguelite-init.js" data-experimental="roguelite"></script>
+  <div id="scanlines"></div>
+  <div id="vignette"></div>
+  <script>
+    (function(){
+      try{
+        var v = localStorage.getItem('si_crt');
+        var on = (v===null) ? true : v==='1';
+        var a = document.getElementById('scanlines');
+        var b = document.getElementById('vignette');
+        if(a) a.style.display = on? 'block':'none';
+        if(b) b.style.display = on? 'block':'none';
+      }catch(e){}
+    })();
+  </script>
+  <div id="volume-control" style="position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:100;">
+    <label for="volume" style="color:#fff; font-family:monospace; margin-right:10px;">Volume:</label>
+    <input type="range" id="volume" name="volume" min="0" max="100" value="50">
+  </div>
+  <script src="music.js"></script>
+  <script src="start-scene.js"></script>
+  <script src="hangar-system.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

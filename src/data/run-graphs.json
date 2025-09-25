@@ -1,0 +1,141 @@
+{
+  "graphs": {
+    "sector-default": [
+      {
+        "id": "start",
+        "type": "wave",
+        "title": "Frontline Patrol",
+        "description": "Standard formation with light shields.",
+        "modifier": null,
+        "rewardPreview": { "salvage": 20 },
+        "exits": ["split-a", "split-b"]
+      },
+      {
+        "id": "split-a",
+        "type": "wave",
+        "title": "Wreckage Drift",
+        "description": "Asteroid debris and slow-moving heavies.",
+        "modifier": "hazard-debris",
+        "rewardPreview": { "salvage": 30 },
+        "exits": ["mini-boss"]
+      },
+      {
+        "id": "split-b",
+        "type": "wave",
+        "title": "Interceptor Wing",
+        "description": "Fast movers that boost combo potential.",
+        "modifier": "elite-interceptors",
+        "rewardPreview": { "salvage": 35, "bonus": "combo" },
+        "exits": ["mini-boss"]
+      },
+      {
+        "id": "mini-boss",
+        "type": "elite",
+        "title": "Shield Overseer",
+        "description": "Protective drone with rotating barrier.",
+        "modifier": "objective-destabilize",
+        "rewardPreview": { "salvage": 45, "cores": 2 },
+        "exits": ["boss-1"]
+      },
+      {
+        "id": "boss-1",
+        "type": "boss",
+        "title": "Nebula Tyrant",
+        "description": "Phase-shifting tyrant armed with beam sweeps.",
+        "modifier": "boss-phase",
+        "rewardPreview": { "salvage": 120, "cores": 2 },
+        "exits": ["sector-transition-1"]
+      },
+      {
+        "id": "sector-transition-1",
+        "type": "event",
+        "title": "Sector Transition",
+        "description": "Moving to the Ruined Armada sector...",
+        "modifier": null,
+        "rewardPreview": { "salvage": 50, "bonus": "sector-complete" },
+        "exits": ["armada-start"]
+      },
+      {
+        "id": "armada-start",
+        "type": "wave",
+        "title": "Derelict Screen",
+        "description": "Broken capital ships hide sniper pods.",
+        "modifier": "hazard-fog",
+        "rewardPreview": { "salvage": 28 },
+        "exits": ["repair-hull", "data-cache"]
+      },
+      {
+        "id": "repair-hull",
+        "type": "event",
+        "title": "Salvage Opportunity",
+        "description": "Trade combo meter for hull repairs.",
+        "modifier": "choice-trade",
+        "rewardPreview": { "salvage": 10, "bonus": "heal" },
+        "exits": ["boss-2"]
+      },
+      {
+        "id": "data-cache",
+        "type": "wave",
+        "title": "Encrypted Cache",
+        "description": "Escort a slow cargo drop while clearing waves.",
+        "modifier": "objective-defend",
+        "rewardPreview": { "salvage": 55, "cores": 1 },
+        "exits": ["boss-2"]
+      },
+      {
+        "id": "boss-2",
+        "type": "boss",
+        "title": "Armada Warden",
+        "description": "Guardian carrier with fighter launches.",
+        "modifier": "boss-carrier",
+        "rewardPreview": { "salvage": 140, "cores": 2 },
+        "exits": ["sector-transition-2"]
+      },
+      {
+        "id": "sector-transition-2",
+        "type": "event",
+        "title": "Sector Transition",
+        "description": "Moving to the Singularity sector...",
+        "modifier": null,
+        "rewardPreview": { "salvage": 75, "bonus": "sector-complete" },
+        "exits": ["singularity-start"]
+      },
+      {
+        "id": "singularity-start",
+        "type": "wave",
+        "title": "Singularity Approach",
+        "description": "Gravity wells and temporal distortions.",
+        "modifier": "hazard-gravity",
+        "rewardPreview": { "salvage": 35 },
+        "exits": ["energy-core", "time-anomaly"]
+      },
+      {
+        "id": "energy-core",
+        "type": "wave",
+        "title": "Energy Core",
+        "description": "Harvest energy cores while fighting off defenders.",
+        "modifier": "objective-collect",
+        "rewardPreview": { "salvage": 60, "cores": 1 },
+        "exits": ["final-boss"]
+      },
+      {
+        "id": "time-anomaly",
+        "type": "elite",
+        "title": "Temporal Guardian",
+        "description": "Ancient construct that manipulates time itself.",
+        "modifier": "elite-temporal",
+        "rewardPreview": { "salvage": 80, "cores": 2 },
+        "exits": ["final-boss"]
+      },
+      {
+        "id": "final-boss",
+        "type": "boss",
+        "title": "Singularity Entity",
+        "description": "The source of all anomalies in this sector.",
+        "modifier": "boss-singularity",
+        "rewardPreview": { "salvage": 200, "cores": 3 },
+        "exits": []
+      }
+    ]
+  }
+}
