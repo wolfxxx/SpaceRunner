@@ -1,4 +1,4 @@
-// Professional Start Scene for Space Invaders
+﻿// Professional Start Scene for SPACERUNNER
 // Clean, organized UI with professional panels
 
 class StartScene extends Phaser.Scene {
@@ -63,7 +63,7 @@ class StartScene extends Phaser.Scene {
 
   createHeader(w, h) {
     // Main title with professional styling
-    this.add.text(w/2 - 100, 50, 'SPACE INVADERS', {
+    this.add.text(w/2 - 100, 50, 'SPACERUNNER', {
       fontFamily: 'monospace',
       fontSize: '48px',
       color: '#00ffff',

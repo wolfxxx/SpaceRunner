@@ -1082,12 +1082,12 @@ class GameScene extends Phaser.Scene{
     const volumeSlider = document.getElementById('volume');
     if (volumeSlider) {
       volumeSlider.addEventListener('input', (event) => {
-        // Halved mapping: midpoint (50) now equals prior half volume
-        const volume = parseFloat(event.target.value) / 3200;
+        // Map slider 0-100 to volume 0.0-0.1 (reasonable range)
+        const volume = parseFloat(event.target.value) / 1000;
         Music.setVolume(volume);
       });
-      // Set initial volume using halved mapping
-      Music.setVolume(parseFloat(volumeSlider.value) / 3200);
+      // Set initial volume using proper mapping
+      Music.setVolume(parseFloat(volumeSlider.value) / 1000);
     }
   }
 
@@ -1423,7 +1423,17 @@ class GameScene extends Phaser.Scene{
       try{ (this._countdownTimeouts||[]).forEach(id=>{ try{ clearTimeout(id); }catch(_){} }); }catch(_){}
       this._countdownEvents=[]; this._countdownTimeouts=[];
       this.infoText.setText('');
-      if(this.level%3===0) { Music.play(this, 'boss', 0.25); } else { Music.play(this, this.level % 2 === 0 ? 'level2' : 'level1', 0.25); }
+      // Try to play music safely
+      try {
+        if(this.level%3===0) { 
+          Music.play(this, 'boss', 0.25); 
+        } else { 
+          const track = this.level % 2 === 0 ? 'level2' : 'level1';
+          Music.play(this, track, 0.25); 
+        }
+      } catch(err) {
+        console.warn('[Game] Music playback failed:', err);
+      }
     };
     try{ const evEnd=this.time.delayedCall(base*5, finish); this._countdownEvents.push(evEnd); }catch(e){}
     try{ const idEnd=setTimeout(finish, base*5); this._countdownTimeouts.push(idEnd); }catch(e){}
