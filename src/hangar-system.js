@@ -1570,6 +1570,16 @@ class HangarScene extends Phaser.Scene {
       this.helpScrollBottom.destroy();
       this.helpScrollBottom = null;
     }
+    if (this._helpKeyboardHandlers && this.input && this.input.keyboard) {
+      this._helpKeyboardHandlers.forEach(({ event, handler }) => {
+        try { this.input.keyboard.off(event, handler, this); } catch (err) {}
+      });
+    }
+    this._helpKeyboardHandlers = null;
+    if (this._helpWheelHandler && this.input) {
+      try { this.input.off('wheel', this._helpWheelHandler, this); } catch (err) {}
+    }
+    this._helpWheelHandler = null;
   }
 
   updateScrollIndicators() {
@@ -1644,30 +1654,37 @@ class HangarScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(102);
     }
     
-    this.input.keyboard.on('keydown-DOWN', () => {
+    this._helpKeyboardHandlers = [];
+
+    const handleHelpKeyDown = () => {
       this.helpScrollY = Math.min(this.helpMaxScroll, this.helpScrollY + 20);
       this.helpScrollContainer.y = -this.helpScrollY;
       this.updateScrollIndicators();
-    });
-    
-    this.input.keyboard.on('keydown-UP', () => {
+    };
+
+    const handleHelpKeyUp = () => {
       this.helpScrollY = Math.max(0, this.helpScrollY - 20);
       this.helpScrollContainer.y = -this.helpScrollY;
       this.updateScrollIndicators();
-    });
-    
-    // Add mouse wheel scrolling
-    this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY, deltaZ) => {
+    };
+
+    this.input.keyboard.on('keydown-DOWN', handleHelpKeyDown, this);
+    this.input.keyboard.on('keydown-UP', handleHelpKeyUp, this);
+    this._helpKeyboardHandlers.push({ event: 'keydown-DOWN', handler: handleHelpKeyDown });
+    this._helpKeyboardHandlers.push({ event: 'keydown-UP', handler: handleHelpKeyUp });
+
+    const handleHelpWheel = (pointer, _gameObjects, deltaX, deltaY, _deltaZ) => {
       if (deltaY > 0) {
-        // Scroll down
         this.helpScrollY = Math.min(this.helpMaxScroll, this.helpScrollY + 30);
       } else if (deltaY < 0) {
-        // Scroll up
         this.helpScrollY = Math.max(0, this.helpScrollY - 30);
       }
       this.helpScrollContainer.y = -this.helpScrollY;
       this.updateScrollIndicators();
-    });
+    };
+
+    this.input.on('wheel', handleHelpWheel, this);
+    this._helpWheelHandler = handleHelpWheel;
   }
 
   getShipVariantsHelp() {
