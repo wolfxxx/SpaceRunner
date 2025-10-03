@@ -256,10 +256,6 @@ class HangarScene extends Phaser.Scene {
     // Initialize with ships tab content
     console.log('[Hangar] Initializing with ships tab...');
     this.switchTab('ships');
-
-    this.events.once('shutdown', () => {
-      this.teardownLoadoutScroll();
-    });
   }
 
   createMainPanels() {
@@ -518,8 +514,6 @@ class HangarScene extends Phaser.Scene {
       console.warn('[Hangar] contentContainer not found, creating it');
       this.contentContainer = this.add.container(0, 0);
     }
-
-    this.teardownLoadoutScroll();
     
     // Log how many objects are being removed
     const objectCount = this.contentContainer.length;
@@ -531,43 +525,6 @@ class HangarScene extends Phaser.Scene {
     // Verify clearing worked
     const remainingCount = this.contentContainer.length;
     console.log(`[Hangar] Content clearing complete. Remaining objects: ${remainingCount}`);
-  }
-
-  teardownLoadoutScroll() {
-    if (this._loadoutScrollZone) {
-      try { this._loadoutScrollZone.off('wheel', this._loadoutScrollHandler); } catch (err) {}
-      try { this._loadoutScrollZone.destroy(); } catch (err) {}
-      this._loadoutScrollZone = null;
-    }
-    if (this._loadoutScrollHandler) {
-      try { this.input.off('wheel', this._loadoutScrollHandler, this); } catch (err) {}
-      this._loadoutScrollHandler = null;
-    }
-    if (this._loadoutScrollContainer) {
-      try { this._loadoutScrollContainer.clearMask(true); } catch (err) {
-        console.warn('[Hangar] Failed to clear loadout mask:', err);
-      }
-      this._loadoutScrollContainer = null;
-    }
-    if (this._loadoutScrollMask) {
-      try { this._loadoutScrollMask.destroy(); } catch (err) {}
-      this._loadoutScrollMask = null;
-    }
-    const keyboard = this.input && this.input.keyboard;
-    if (this._loadoutKeyboardHandlers && keyboard) {
-      this._loadoutKeyboardHandlers.forEach(({ key, handler, keyCode }) => {
-        try { key.off('down', handler, this); } catch (err) {}
-        try { keyboard.removeCapture(keyCode); } catch (err) {}
-        try { keyboard.removeKey(keyCode, false); } catch (err) {}
-      });
-    }
-    this._loadoutKeyboardHandlers = null;
-    if (this._loadoutScrollHint) {
-      const { bg, label } = this._loadoutScrollHint;
-      try { if (bg) this.contentContainer.remove(bg, true); } catch (err) { try { bg && bg.destroy(); } catch (err2) {} }
-      try { if (label) this.contentContainer.remove(label, true); } catch (err) { try { label && label.destroy(); } catch (err2) {} }
-    }
-    this._loadoutScrollHint = null;
   }
 
   showShipsTab() {
@@ -856,383 +813,277 @@ class HangarScene extends Phaser.Scene {
 
   showAbilitiesTab() {
     const { width, height } = this.scale;
-    const startY = height / 2 - 70;
+    const startY = height/2 - 80; // Position higher to avoid footer interference
     const meta = this.getMetaState();
-
+    
+    // Abilities grid
     const abilityKeys = Object.keys(ACTIVE_ABILITIES);
-    const columns = Math.min(2, Math.max(1, abilityKeys.length));
-    const columnSpacing = 320;
-
+    
     abilityKeys.forEach((abilityKey, index) => {
       const ability = ACTIVE_ABILITIES[abilityKey];
-      const column = index % columns;
-      const row = Math.floor(index / columns);
-      const x = width / 2 - ((columns - 1) * columnSpacing) / 2 + column * columnSpacing;
-      const y = startY + row * 170;
-
-      const isUnlocked = !!(meta.unlocks && meta.unlocks[`ability_${abilityKey}`]);
+      const x = width/2 - 150 + (index % 2) * 300; // Center abilities horizontally
+      const y = startY + Math.floor(index / 2) * 140; // Increased spacing
+      
+      const isUnlocked = meta.unlocks && meta.unlocks[`ability_${abilityKey}`];
       const currentLevel = (meta.unlocks && meta.unlocks[`${abilityKey}_level`]) || 0;
-      const displayLevel = isUnlocked ? Math.max(1, currentLevel) : 0;
-      const currency = ability.unlockCurrency;
-      const nextUpgradeCost = isUnlocked && displayLevel < ability.maxLevel
-        ? (ability.upgradeCosts?.[displayLevel - 1] ?? ability.upgradeCosts?.[0] ?? 0)
-        : ability.unlockCost;
-      const canAfford = typeof nextUpgradeCost === 'number' && (meta[currency] || 0) >= nextUpgradeCost;
-
-      const cardFill = isUnlocked ? 0x2e2a78 : (canAfford ? 0x1f3f35 : 0x262a45);
-      const strokeColor = isUnlocked ? 0xb49dff : (canAfford ? 0x37ffb5 : 0x5663a1);
-      const cardBg = this.add.rectangle(x, y, 300, 150, cardFill, 0.94)
-        .setStrokeStyle(2, strokeColor, 1)
+      
+      // Check if ability can be afforded (for unlockable abilities)
+      const canAfford = !isUnlocked && (meta[ability.unlockCurrency] || 0) >= ability.unlockCost;
+      
+      console.log('[Hangar] Ability affordability check for', abilityKey, ':', {
+        isUnlocked,
+        currentLevel,
+        unlockCurrency: ability.unlockCurrency,
+        metaCurrency: meta[ability.unlockCurrency],
+        unlockCost: ability.unlockCost,
+        canAfford,
+        comparison: `${meta[ability.unlockCurrency]} >= ${ability.unlockCost} = ${canAfford}`
+      });
+      
+      // Ability card - larger to prevent overlap
+      const cardBg = this.add.rectangle(x, y, 280, 120, 0x332244, 0.8)
+        .setStrokeStyle(2, isUnlocked ? 0x8844ff : (canAfford ? 0x00ff88 : 0x444444))
         .setDepth(20);
-      this.contentContainer.add(cardBg);
 
-      const headerColor = isUnlocked ? '#f6f4ff' : (canAfford ? '#a8ffe0' : '#d6d6e8');
-      const nameText = this.add.text(x, y - 58, ability.name, {
+      // Ability name - bright if unlocked or affordable
+      const nameColor = isUnlocked ? '#ffffff' : (canAfford ? '#00ff00' : '#888888');
+      console.log('[Hangar] Ability name color for', abilityKey, ':', nameColor, '(isUnlocked:', isUnlocked, ', canAfford:', canAfford, ')');
+      const nameText = this.add.text(x, y - 40, ability.name, {
         fontFamily: 'monospace',
-        fontSize: '18px',
-        color: headerColor
-      }).setOrigin(0.5).setDepth(31);
-      nameText.setShadow(0, 0, '#000000', 6, true, true);
+        fontSize: '16px',
+        color: nameColor
+      }).setOrigin(0.5).setDepth(30);
+      
       this.contentContainer.add(nameText);
 
-      const descColor = isUnlocked ? '#dbdcff' : (canAfford ? '#baffea' : '#c6c7d8');
-      const descText = this.add.text(x, y - 28, ability.description, {
+      // Description - bright if unlocked or affordable
+      const descColor = isUnlocked ? '#cccccc' : (canAfford ? '#88ff88' : '#777777');
+      console.log('[Hangar] Ability description color for', abilityKey, ':', descColor, '(isUnlocked:', isUnlocked, ', canAfford:', canAfford, ')');
+      const descText = this.add.text(x, y - 20, ability.description, {
         fontFamily: 'monospace',
-        fontSize: '12px',
+        fontSize: '11px',
         color: descColor,
         wordWrap: { width: 260 }
       }).setOrigin(0.5).setDepth(30);
-      descText.setShadow(0, 0, '#000000', 4, true, true);
+      
       this.contentContainer.add(descText);
 
-      const statsLine = `Cooldown: ${ability.cooldown}s    Energy: ${ability.energyCost}`;
-      const statsText = this.add.text(x, y, statsLine, {
+      // Stats - bright if unlocked or affordable
+      const statsText = this.add.text(x, y, `Cooldown: ${ability.cooldown}s | Energy: ${ability.energyCost}`, {
         fontFamily: 'monospace',
-        fontSize: '11px',
-        color: isUnlocked ? '#f1f1ff' : '#d7ffe9'
+        fontSize: '10px',
+        color: isUnlocked ? '#aaaaaa' : (canAfford ? '#88ff88' : '#666666')
       }).setOrigin(0.5).setDepth(30);
-      statsText.setShadow(0, 0, '#000000', 3, true, true);
+      
       this.contentContainer.add(statsText);
 
+      // Unlock/Upgrade button
       if (!isUnlocked) {
-        const costLine = `Unlock Cost: ${ability.unlockCost} ${currency.toUpperCase()}`;
-        const costText = this.add.text(x, y + 26, costLine, {
+        const cost = ability.unlockCost;
+        const currency = ability.unlockCurrency;
+        const canAfford = (meta[currency] || 0) >= cost;
+        
+        const unlockText = this.add.text(x, y + 20, `Unlock: ${cost} ${currency}`, {
           fontFamily: 'monospace',
           fontSize: '12px',
-          color: canAfford ? '#9effc6' : '#ff8c8c'
+          color: canAfford ? '#00ff00' : '#ff6666'
         }).setOrigin(0.5).setDepth(30);
-        costText.setShadow(0, 0, '#000000', 3, true, true);
-        this.contentContainer.add(costText);
+        
+        this.contentContainer.add(unlockText);
 
         if (canAfford) {
-          const unlockBtn = this.add.text(x, y + 48, '[UNLOCK]', {
-            fontFamily: 'monospace',
-            fontSize: '13px',
-            color: '#0aff6c'
-          }).setOrigin(0.5).setDepth(40).setInteractive({ useHandCursor: true });
-          unlockBtn.setShadow(0, 0, '#000000', 4, true, true);
-          unlockBtn.on('pointerdown', () => this.unlockAbility(abilityKey));
-          unlockBtn.on('pointerover', function() { this.setColor('#caffff'); });
-          unlockBtn.on('pointerout', function() { this.setColor('#0aff6c'); });
-          this.contentContainer.add(unlockBtn);
-        } else {
-          const lockedText = this.add.text(x, y + 48, 'Earn more cores to unlock', {
-            fontFamily: 'monospace',
-            fontSize: '11px',
-            color: '#f3b0b0'
-          }).setOrigin(0.5).setDepth(30);
-          lockedText.setShadow(0, 0, '#000000', 3, true, true);
-          this.contentContainer.add(lockedText);
-        }
-      } else {
-        const levelLine = `Level ${displayLevel}/${ability.maxLevel}`;
-        const levelText = this.add.text(x, y + 24, levelLine, {
-          fontFamily: 'monospace',
-          fontSize: '12px',
-          color: '#f5f4ff'
-        }).setOrigin(0.5).setDepth(30);
-        levelText.setShadow(0, 0, '#000000', 3, true, true);
-        this.contentContainer.add(levelText);
-
-        if (displayLevel < ability.maxLevel) {
-          const nextCost = ability.upgradeCosts?.[displayLevel - 1] ?? ability.upgradeCosts?.[0] ?? 0;
-          const canUpgrade = (meta[currency] || 0) >= nextCost;
-          const upgradeLine = `Upgrade Cost: ${nextCost} ${currency.toUpperCase()}`;
-          const upgradeText = this.add.text(x, y + 44, upgradeLine, {
-            fontFamily: 'monospace',
-            fontSize: '11px',
-            color: canUpgrade ? '#9effc6' : '#ff8c8c'
-          }).setOrigin(0.5).setDepth(30);
-          upgradeText.setShadow(0, 0, '#000000', 3, true, true);
-          this.contentContainer.add(upgradeText);
-
-          if (canUpgrade) {
-            const upgradeBtn = this.add.text(x, y + 64, '[UPGRADE]', {
-              fontFamily: 'monospace',
-              fontSize: '13px',
-              color: '#0aff6c'
-            }).setOrigin(0.5).setDepth(40).setInteractive({ useHandCursor: true });
-            upgradeBtn.setShadow(0, 0, '#000000', 4, true, true);
-            upgradeBtn.on('pointerdown', () => this.upgradeAbility(abilityKey, nextCost));
-            upgradeBtn.on('pointerover', function() { this.setColor('#caffff'); });
-            upgradeBtn.on('pointerout', function() { this.setColor('#0aff6c'); });
-            this.contentContainer.add(upgradeBtn);
-          } else {
-            const needMore = this.add.text(x, y + 64, 'Insufficient cores for upgrade', {
-              fontFamily: 'monospace',
-              fontSize: '11px',
-              color: '#f3b0b0'
-            }).setOrigin(0.5).setDepth(30);
-            needMore.setShadow(0, 0, '#000000', 3, true, true);
-            this.contentContainer.add(needMore);
-          }
-        } else {
-          const maxTag = this.add.text(x, y + 44, 'Ability Mastered', {
+          const unlockBtn = this.add.text(x, y + 40, '[UNLOCK]', {
             fontFamily: 'monospace',
             fontSize: '12px',
-            color: '#ffe08a'
-          }).setOrigin(0.5).setDepth(30);
-          maxTag.setShadow(0, 0, '#000000', 3, true, true);
-          this.contentContainer.add(maxTag);
+            color: '#00ff00'
+          }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+          .setDepth(40)
+          .on('pointerdown', () => this.unlockAbility(abilityKey));
+          
+          this.contentContainer.add(unlockBtn);
         }
+      } else if (currentLevel < ability.maxLevel) {
+        const cost = ability.upgradeCosts[currentLevel - 1]; // Fix: currentLevel-1 because array is 0-indexed
+        const currency = ability.unlockCurrency; // Use the same currency as unlock (cores)
+        const canAfford = (meta[currency] || 0) >= cost;
+        
+        const upgradeText = this.add.text(x, y + 20, `Level ${currentLevel + 1}/${ability.maxLevel} (${cost} ${currency})`, {
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          color: canAfford ? '#00ff00' : '#ff6666'
+        }).setOrigin(0.5).setDepth(30);
+        
+        this.contentContainer.add(upgradeText);
+
+        if (canAfford) {
+          const upgradeBtn = this.add.text(x, y + 40, '[UPGRADE]', {
+            fontFamily: 'monospace',
+            fontSize: '12px',
+            color: '#00ff00'
+          }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+          .setDepth(40)
+          .on('pointerdown', () => this.upgradeAbility(abilityKey, cost));
+          
+          this.contentContainer.add(upgradeBtn);
+        }
+      } else {
+        const maxText = this.add.text(x, y + 20, `Level ${currentLevel}/${ability.maxLevel} - MAX`, {
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          color: '#ffaa00'
+        }).setOrigin(0.5).setDepth(30);
+        
+        this.contentContainer.add(maxText);
       }
+
+      this.contentContainer.add(cardBg);
     });
   }
 
   showLoadoutTab() {
     const { width, height } = this.scale;
-    const headerHeight = 80;
-    const tabHeight = 50;
-    const footerHeight = 60;
-    const safeAreaTop = headerHeight + tabHeight + 10;
-    const safeAreaBottom = height - footerHeight - 10;
+    const startY = height/2 - 120; // Position higher to avoid footer interference
     const meta = this.getMetaState();
-
+    
+    // Current ship display
     const ship = SHIP_VARIANTS[this.selectedShip];
-    const titleY = safeAreaTop + 20;
-
-    const shipText = this.add.text(width / 2, titleY, `Current Ship: ${ship.name}`, {
+    const shipText = this.add.text(width/2, startY, `Current Ship: ${ship.name}`, {
       fontFamily: 'monospace',
       fontSize: '20px',
       color: '#00ffff'
     }).setOrigin(0.5).setDepth(30);
+    
     this.contentContainer.add(shipText);
 
-    const statsText = this.add.text(width / 2, titleY + 28, `Speed: ${ship.stats.speed} | Health: ${ship.stats.health} | Shields: ${ship.stats.shieldCapacity}`, {
+    // Ship stats display
+    const statsText = this.add.text(width/2, startY + 30, `Speed: ${ship.stats.speed} | Health: ${ship.stats.health} | Shields: ${ship.stats.shieldCapacity}`, {
       fontFamily: 'monospace',
       fontSize: '14px',
       color: '#aaaaaa'
     }).setOrigin(0.5).setDepth(30);
-    this.contentContainer.add(statsText);    const scrollWidth = Math.max(320, width - 120);
-    const hintAreaHeight = 36;
-    const scrollTop = titleY + 60 + hintAreaHeight;
-    const viewHeight = Math.max(140, safeAreaBottom - scrollTop);
-    const scrollContainer = this.add.container(0, scrollTop);
-    this.contentContainer.add(scrollContainer);
+    
+    this.contentContainer.add(statsText);
 
-    const maskShape = this.add.rectangle(width / 2, scrollTop + viewHeight / 2, scrollWidth, viewHeight, 0xffffff, 0.001);
-    maskShape.setVisible(false);
-    this.contentContainer.add(maskShape);
-
-    scrollContainer.setMask(maskShape.createGeometryMask());
-
-    this._loadoutScrollContainer = scrollContainer;
-    this._loadoutScrollMask = maskShape;
-
-    let cursorY = 16;
-
-    const upgradesHeader = this.add.text(width / 2, cursorY, 'Active Upgrades', {
+    // Active upgrades section
+    const upgradesY = startY + 80;
+    const upgradesHeader = this.add.text(width/2, upgradesY, 'Active Upgrades', {
       fontFamily: 'monospace',
       fontSize: '18px',
       color: '#ffffff'
-    }).setOrigin(0.5, 0).setDepth(30);
-    scrollContainer.add(upgradesHeader);
-    cursorY += 40;
+    }).setOrigin(0.5).setDepth(30);
+    
+    this.contentContainer.add(upgradesHeader);
 
-    const cardHeight = 56;
-    const cardSpacing = 12;
+    let upgradeY = upgradesY + 40;
     let hasUpgrades = false;
 
+    // List all active upgrades in organized cards
     Object.keys(UPGRADE_CATEGORIES).forEach(catKey => {
       const category = UPGRADE_CATEGORIES[catKey];
       Object.keys(category.upgrades).forEach(upgradeKey => {
         const upgrade = category.upgrades[upgradeKey];
         const level = (meta.unlocks && meta.unlocks[upgradeKey]) || 0;
-        if (!level) {
-          return;
+        
+        if (level > 0) {
+          hasUpgrades = true;
+          
+          // Upgrade card
+          const cardBg = this.add.rectangle(width/2, upgradeY, 400, 40, 0x223344, 0.7)
+            .setStrokeStyle(1, 0x00ff00)
+            .setDepth(20);
+          
+          this.contentContainer.add(cardBg);
+          
+          const upgradeNameText = this.add.text(width/2, upgradeY, `${upgrade.name} (Level ${level})`, {
+            fontFamily: 'monospace',
+            fontSize: '14px',
+            color: '#00ff00'
+          }).setOrigin(0.5).setDepth(30);
+          
+          this.contentContainer.add(upgradeNameText);
+          
+          const upgradeEffectText = this.add.text(width/2, upgradeY + 15, upgrade.effects[level - 1], {
+            fontFamily: 'monospace',
+            fontSize: '11px',
+            color: '#aaaaaa'
+          }).setOrigin(0.5).setDepth(30);
+          
+          this.contentContainer.add(upgradeEffectText);
+          
+          upgradeY += 50;
         }
-
-        hasUpgrades = true;
-        const cardY = cursorY + cardHeight / 2;
-
-        const cardBg = this.add.rectangle(width / 2, cardY, 400, cardHeight, 0x223344, 0.75)
-          .setStrokeStyle(1, 0x00ff00)
-          .setDepth(20);
-        scrollContainer.add(cardBg);
-
-        const nameText = this.add.text(width / 2, cardY - 10, `${upgrade.name} (Level ${level})`, {
-          fontFamily: 'monospace',
-          fontSize: '14px',
-          color: '#00ff00'
-        }).setOrigin(0.5).setDepth(30);
-        scrollContainer.add(nameText);
-
-        const effectText = this.add.text(width / 2, cardY + 12, upgrade.effects[level - 1], {
-          fontFamily: 'monospace',
-          fontSize: '11px',
-          color: '#aaaaaa',
-          wordWrap: { width: 360 }
-        }).setOrigin(0.5).setDepth(30);
-        scrollContainer.add(effectText);
-
-        cursorY += cardHeight + cardSpacing;
       });
     });
 
     if (!hasUpgrades) {
-      const noUpgradesText = this.add.text(width / 2, cursorY, 'No upgrades purchased yet', {
+      const noUpgradesText = this.add.text(width/2, upgradeY, 'No upgrades purchased yet', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#666666'
       }).setOrigin(0.5).setDepth(30);
-      scrollContainer.add(noUpgradesText);
-      cursorY += 40;
+      
+      this.contentContainer.add(noUpgradesText);
     }
 
-    cursorY += 10;
-
-    const abilitiesHeader = this.add.text(width / 2, cursorY, 'Active Abilities', {
+    // Active abilities section
+    const abilitiesY = upgradeY + 30;
+    const abilitiesHeader = this.add.text(width/2, abilitiesY, 'Active Abilities', {
       fontFamily: 'monospace',
       fontSize: '18px',
       color: '#ffffff'
-    }).setOrigin(0.5, 0).setDepth(30);
-    scrollContainer.add(abilitiesHeader);
-    cursorY += 40;
+    }).setOrigin(0.5).setDepth(30);
+    
+    this.contentContainer.add(abilitiesHeader);
 
+    let abilityY = abilitiesY + 40;
     let hasAbilities = false;
+
     Object.keys(ACTIVE_ABILITIES).forEach(abilityKey => {
       const ability = ACTIVE_ABILITIES[abilityKey];
       const isUnlocked = meta.unlocks && meta.unlocks[`ability_${abilityKey}`];
-      if (!isUnlocked) {
-        return;
+      
+      if (isUnlocked) {
+        hasAbilities = true;
+        const level = (meta.unlocks && meta.unlocks[`${abilityKey}_level`]) || 1;
+        
+        // Ability card
+        const cardBg = this.add.rectangle(width/2, abilityY, 400, 40, 0x332244, 0.7)
+          .setStrokeStyle(1, 0x8844ff)
+          .setDepth(20);
+        
+        this.contentContainer.add(cardBg);
+        
+        const abilityNameText = this.add.text(width/2, abilityY, `${ability.name} (Level ${level})`, {
+          fontFamily: 'monospace',
+          fontSize: '14px',
+          color: '#8844ff'
+        }).setOrigin(0.5).setDepth(30);
+        
+        this.contentContainer.add(abilityNameText);
+        
+        const abilityEffectText = this.add.text(width/2, abilityY + 15, ability.effects[level - 1], {
+          fontFamily: 'monospace',
+          fontSize: '11px',
+          color: '#aaaaaa'
+        }).setOrigin(0.5).setDepth(30);
+        
+        this.contentContainer.add(abilityEffectText);
+        
+        abilityY += 50;
       }
-
-      hasAbilities = true;
-      const level = (meta.unlocks && meta.unlocks[`${abilityKey}_level`]) || 1;
-      const cardY = cursorY + cardHeight / 2;
-
-      const cardBg = this.add.rectangle(width / 2, cardY, 400, cardHeight, 0x332244, 0.75)
-        .setStrokeStyle(1, 0x8844ff)
-        .setDepth(20);
-      scrollContainer.add(cardBg);
-
-      const nameText = this.add.text(width / 2, cardY - 10, `${ability.name} (Level ${level})`, {
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        color: '#aa77ff'
-      }).setOrigin(0.5).setDepth(30);
-      scrollContainer.add(nameText);
-
-      const effectText = this.add.text(width / 2, cardY + 12, ability.effects[level - 1], {
-        fontFamily: 'monospace',
-        fontSize: '11px',
-        color: '#aaaaaa',
-        wordWrap: { width: 360 }
-      }).setOrigin(0.5).setDepth(30);
-      scrollContainer.add(effectText);
-
-      cursorY += cardHeight + cardSpacing;
     });
 
     if (!hasAbilities) {
-      const noAbilitiesText = this.add.text(width / 2, cursorY, 'No abilities unlocked yet', {
+      const noAbilitiesText = this.add.text(width/2, abilityY, 'No abilities unlocked yet', {
         fontFamily: 'monospace',
         fontSize: '14px',
         color: '#666666'
       }).setOrigin(0.5).setDepth(30);
-      scrollContainer.add(noAbilitiesText);
-      cursorY += 40;
-    }
-
-    const contentHeight = cursorY;
-    const maxScroll = Math.max(0, contentHeight - viewHeight);
-    let scrollOffset = 0;
-
-    const applyScroll = () => {
-      scrollContainer.y = scrollTop - scrollOffset;
-    };
-    applyScroll();
-
-    if (maxScroll > 0) {
-      const wheelHandler = (pointer, _gameObjects, deltaX, deltaY, _deltaZ) => {
-        const rawDelta = typeof deltaY === 'number' ? deltaY : ((pointer && pointer.event && typeof pointer.event.deltaY === 'number') ? pointer.event.deltaY : 0);
-        scrollOffset = Phaser.Math.Clamp(scrollOffset + rawDelta * 0.5, 0, maxScroll);
-        applyScroll();
-        const nativeEvent = pointer && pointer.event;
-        if (nativeEvent && typeof nativeEvent.preventDefault === 'function') {
-          nativeEvent.preventDefault();
-        }
-      };
-      this.input.on('wheel', wheelHandler, this);
-      this._loadoutScrollZone = null;
-      this._loadoutScrollHandler = wheelHandler;
-
-      const hintY = scrollTop - hintAreaHeight / 2;
-      const hintBgWidth = Math.min(scrollWidth, width - 200);
-      const hintBg = this.add.rectangle(width / 2, hintY, Math.max(200, hintBgWidth), 26, 0x000000, 0.68)
-        .setDepth(119);
-      hintBg.setScrollFactor(0);
-      const hint = this.add.text(width / 2, hintY, 'Scroll: Mouse Wheel or Arrow Keys', {
-        fontFamily: 'monospace',
-        fontSize: '12px',
-        color: '#eeeeee'
-      }).setOrigin(0.5).setDepth(120);
-      hint.setScrollFactor(0);
-      this.contentContainer.add(hintBg);
-      this.contentContainer.add(hint);
-      this._loadoutScrollHint = { bg: hintBg, label: hint };
-
-      const keyboard = this.input.keyboard;
-      if (keyboard) {
-        const captureCodes = [
-          Phaser.Input.Keyboard.KeyCodes.DOWN,
-          Phaser.Input.Keyboard.KeyCodes.UP,
-          Phaser.Input.Keyboard.KeyCodes.PAGE_DOWN,
-          Phaser.Input.Keyboard.KeyCodes.PAGE_UP
-        ];
-        keyboard.addCapture(captureCodes);
-        this._loadoutKeyboardHandlers = [];
-
-        const registerKey = (keyCode, delta) => {
-          const key = keyboard.addKey(keyCode);
-          const handler = () => {
-            scrollOffset = Phaser.Math.Clamp(scrollOffset + delta, 0, maxScroll);
-            applyScroll();
-          };
-          key.on('down', handler, this);
-          this._loadoutKeyboardHandlers.push({ key, handler, keyCode });
-        };
-
-        const scrollStep = 40;
-        registerKey(Phaser.Input.Keyboard.KeyCodes.DOWN, scrollStep);
-        registerKey(Phaser.Input.Keyboard.KeyCodes.UP, -scrollStep);
-        registerKey(Phaser.Input.Keyboard.KeyCodes.PAGE_DOWN, scrollStep * 3);
-        registerKey(Phaser.Input.Keyboard.KeyCodes.PAGE_UP, -scrollStep * 3);
-      } else {
-        this._loadoutKeyboardHandlers = null;
-      }
-    } else {
-      this._loadoutScrollZone = null;
-      this._loadoutScrollHandler = null;
-      this._loadoutKeyboardHandlers = null;
-      if (this._loadoutScrollHint) {
-        const { bg, label } = this._loadoutScrollHint;
-        try { if (bg) this.contentContainer.remove(bg, true); } catch (err) { try { bg && bg.destroy(); } catch (err2) {} }
-        try { if (label) this.contentContainer.remove(label, true); } catch (err) { try { label && label.destroy(); } catch (err2) {} }
-      }
-      this._loadoutScrollHint = null;
+      
+      this.contentContainer.add(noAbilitiesText);
     }
   }
+
   selectShip(shipKey) {
     this.selectedShip = shipKey;
     this.showShipsTab(); // Refresh display
@@ -1570,16 +1421,6 @@ class HangarScene extends Phaser.Scene {
       this.helpScrollBottom.destroy();
       this.helpScrollBottom = null;
     }
-    if (this._helpKeyboardHandlers && this.input && this.input.keyboard) {
-      this._helpKeyboardHandlers.forEach(({ event, handler }) => {
-        try { this.input.keyboard.off(event, handler, this); } catch (err) {}
-      });
-    }
-    this._helpKeyboardHandlers = null;
-    if (this._helpWheelHandler && this.input) {
-      try { this.input.off('wheel', this._helpWheelHandler, this); } catch (err) {}
-    }
-    this._helpWheelHandler = null;
   }
 
   updateScrollIndicators() {
@@ -1654,37 +1495,30 @@ class HangarScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(102);
     }
     
-    this._helpKeyboardHandlers = [];
-
-    const handleHelpKeyDown = () => {
+    this.input.keyboard.on('keydown-DOWN', () => {
       this.helpScrollY = Math.min(this.helpMaxScroll, this.helpScrollY + 20);
       this.helpScrollContainer.y = -this.helpScrollY;
       this.updateScrollIndicators();
-    };
-
-    const handleHelpKeyUp = () => {
+    });
+    
+    this.input.keyboard.on('keydown-UP', () => {
       this.helpScrollY = Math.max(0, this.helpScrollY - 20);
       this.helpScrollContainer.y = -this.helpScrollY;
       this.updateScrollIndicators();
-    };
-
-    this.input.keyboard.on('keydown-DOWN', handleHelpKeyDown, this);
-    this.input.keyboard.on('keydown-UP', handleHelpKeyUp, this);
-    this._helpKeyboardHandlers.push({ event: 'keydown-DOWN', handler: handleHelpKeyDown });
-    this._helpKeyboardHandlers.push({ event: 'keydown-UP', handler: handleHelpKeyUp });
-
-    const handleHelpWheel = (pointer, _gameObjects, deltaX, deltaY, _deltaZ) => {
+    });
+    
+    // Add mouse wheel scrolling
+    this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY, deltaZ) => {
       if (deltaY > 0) {
+        // Scroll down
         this.helpScrollY = Math.min(this.helpMaxScroll, this.helpScrollY + 30);
       } else if (deltaY < 0) {
+        // Scroll up
         this.helpScrollY = Math.max(0, this.helpScrollY - 30);
       }
       this.helpScrollContainer.y = -this.helpScrollY;
       this.updateScrollIndicators();
-    };
-
-    this.input.on('wheel', handleHelpWheel, this);
-    this._helpWheelHandler = handleHelpWheel;
+    });
   }
 
   getShipVariantsHelp() {

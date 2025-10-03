@@ -472,3 +472,4 @@ if (typeof window !== 'undefined') {
   window.MissionObjectives = MissionObjectives;
   window.EnhancedAI = EnhancedAI;
 }
+

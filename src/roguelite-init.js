@@ -19,7 +19,7 @@ if (!window || !window.ENABLE_ROGUELITE) {
     async function fetchGraphs() {
       if (graphCache) return graphCache;
       try {
-        const response = await fetch('data/run-graphs.json', { cache: 'no-cache' });
+        const response = await fetch('src/data/run-graphs.json', { cache: 'no-cache' });
         if (!response.ok) throw new Error('HTTP ' + response.status);
         const json = await response.json();
         graphCache = json && json.graphs ? json.graphs : {};

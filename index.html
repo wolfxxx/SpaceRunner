@@ -40,21 +40,38 @@
       }
     })();
     
-    // Roguelite feature flag (default off). Enable via ?roguelite=1 for local testing.
+    // Roguelite feature flag - Always enabled by default
     (function(){
       var qs = (location.search || '');
       var forcedOn = qs.indexOf('roguelite=1') !== -1;
       var forcedOff = qs.indexOf('roguelite=0') !== -1;
-      var stored = null;
-      try { stored = localStorage.getItem('si_roguelite'); } catch (e) { stored = null; }
-      var enabled = true; // Enable roguelite by default for GitHub Pages
-      if(forcedOn) enabled = true;
-      else if(forcedOff) enabled = false;
-      else if(stored !== null) enabled = stored === '1';
+      
+      // Always enable roguelite by default, only disable if explicitly forced off
+      var enabled = true;
+      if(forcedOff) enabled = false;
+      // Note: forcedOn is redundant since enabled is true by default
+      
       window.ENABLE_ROGUELITE = enabled;
       window.SET_ROGUELITE_MODE = function(on){
         window.ENABLE_ROGUELITE = !!on;
         try { localStorage.setItem('si_roguelite', window.ENABLE_ROGUELITE ? '1' : '0'); } catch (e) {}
+      };
+      
+      console.log('[Roguelite] Roguelite mode enabled by default:', enabled);
+      
+      // Force enable roguelite and clear any stored disable settings
+      if (!enabled) {
+        console.log('[Roguelite] Forcing roguelite mode ON');
+        window.ENABLE_ROGUELITE = true;
+        try { localStorage.setItem('si_roguelite', '1'); } catch (e) {}
+      }
+      
+      // Global function to force enable roguelite
+      window.FORCE_ENABLE_ROGUELITE = function() {
+        console.log('[Roguelite] Force enabling roguelite mode');
+        window.ENABLE_ROGUELITE = true;
+        try { localStorage.setItem('si_roguelite', '1'); } catch (e) {}
+        console.log('[Roguelite] Roguelite mode forced ON');
       };
     })();
   </script>

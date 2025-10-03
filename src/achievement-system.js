@@ -388,3 +388,4 @@ const AchievementSystem = (() => {
 if (typeof window !== 'undefined') {
   window.AchievementSystem = AchievementSystem;
 }
+

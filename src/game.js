@@ -876,6 +876,7 @@ class GameScene extends Phaser.Scene{
     this.roguelitePendingLevelStart = null;
     // Begin with countdown gate active to prevent any early movement
     this.isCountingDown = true;
+    this.alienTimer = 0; // Reset alien timer to prevent any movement
     console.log('[GameScene] GameScene create() called - countdown should be active');
     this.physics.world.setBoundsCollision(true,true,true,true);
     if(typeof window !== 'undefined' && !this._postRunSummaryHandler){
@@ -1640,6 +1641,13 @@ class GameScene extends Phaser.Scene{
       this.updateAbilitiesHUD();
     }
     
+    // Update dash shield effects to follow player
+    if(this.dashShieldUpdates && this.dashShieldUpdates.length > 0) {
+      this.dashShieldUpdates.forEach(updateFn => {
+        try { updateFn(); } catch(e) {}
+      });
+    }
+    
     // Handle time slow effects
     if(this.roguelite && this.roguelite.timeSlowUntil && now > this.roguelite.timeSlowUntil) {
       this.physics.world.timeScale = 1.0; // Restore normal time
@@ -1682,7 +1690,10 @@ class GameScene extends Phaser.Scene{
       if(was && !this.isCountingDown){
         // When countdown just ended, seed enemy timers if needed
         if (this.isBossFight){ const base=Phaser.Math.Between(800,1100); this.bossFireTimer = now + Math.max(300, Math.floor(base*(this.bossFireScale||1))); }
-        else { this.alienShootTimer = now + 800; }
+        else { 
+          this.alienShootTimer = now + 800; 
+          this.alienTimer = 0; // Reset alien movement timer when countdown ends
+        }
       }
     }catch(e){}
     // Simple gate: do nothing while counting down or paused
@@ -1874,8 +1885,12 @@ class GameScene extends Phaser.Scene{
       }
     }
 
-    // Aliens movement + shooting when not boss
-    if(!this.isBossFight && this.aliens && this.aliens.countActive(true)>0){
+    // Aliens movement + shooting when not boss and not counting down
+    if(!this.isBossFight && !this.isCountingDown && this.aliens && this.aliens.countActive(true)>0){
+      // Debug: Log when aliens start moving
+      if(this.alienTimer === 0) {
+        console.log('[Game] Aliens starting to move - countdown finished');
+      }
       this.alienTimer+=delta;
       const alive=this.aliens.countActive(true), total=this.aliensTotal||alive;
       const frac = alive/total;
@@ -1916,7 +1931,19 @@ class GameScene extends Phaser.Scene{
             a.y+=28;
             // keep each alien's homeY in sync with the formation descent
             if(typeof a._homeY==='number') a._homeY += 28;
-            if(a.y>520) this.gameOver('Invaders reached the base!');
+            if(a.y>520) {
+              console.log('[Game] Alien reached base at y=', a.y, 'Current lives:', this.lives);
+              // Only trigger game over if player has no lives left
+              if(this.lives <= 0) {
+                console.log('[Game] Game over triggered: Invaders reached base and no lives remaining');
+                this.gameOver('Invaders reached the base!');
+              } else {
+                console.log('[Game] Alien reached base but player still has lives - not triggering game over');
+                // Reset alien position to prevent immediate re-trigger
+                a.y = 480; // Move alien back up slightly
+                if(typeof a._homeY==='number') a._homeY = 480;
+              }
+            }
           });
         }
       }
@@ -2355,9 +2382,18 @@ class GameScene extends Phaser.Scene{
     }catch(e){}
   }
 
-  hitPlayer(player, bullet){ bullet.setActive(false).setVisible(false); if(this.time.now<(this.playerInvincibleUntil||0)) return; // shield absorbs
+  hitPlayer(player, bullet){ 
+    console.log('[Game] hitPlayer called - current lives:', this.lives, 'isGameOver:', this.isGameOver);
+    bullet.setActive(false).setVisible(false); 
+    if(this.time.now<(this.playerInvincibleUntil||0)) {
+      console.log('[Game] hitPlayer ignored - player still invincible');
+      return; // shield absorbs
+    }
     // Ignore all hits during countdowns/level transitions/gameover
-    if(this.isCountingDown || this.inLevelTransition || this.isGameOver || this.isRestarting) return;
+    if(this.isCountingDown || this.inLevelTransition || this.isGameOver || this.isRestarting) {
+      console.log('[Game] hitPlayer ignored - game state prevents hits');
+      return;
+    }
     // Ignore hits during dash invincibility
     if(this.time.now < (this.player.dashInvincible || 0)) return;
     if((this.shieldHits||0)>0 && this.time.now < (this.shieldUntil||0)){
@@ -2391,9 +2427,7 @@ class GameScene extends Phaser.Scene{
     }
     
     if(takeDamage) {
-      this.lives--; 
-      
-      // Check for emergency repair trigger (when down to 1 life)
+      // Check for emergency repair trigger BEFORE decrementing lives
       if(this.lives === 1 && this.roguelite && this.roguelite.emergencyRepairs > 0) {
         this.roguelite.emergencyRepairs--;
         this.lives = Math.min(3, this.lives + 2); // Repair to 3 lives or current max
@@ -2402,10 +2436,40 @@ class GameScene extends Phaser.Scene{
         this.burst(player.x,player.y,'particle',{speed:{min:-100,max:100},lifespan:400,scale:{start:0.5,end:1.2}},20,600);
         try{ const ring=this.add.image(player.x, player.y, 'shock').setBlendMode('ADD').setTint(0x00ffaa).setAlpha(0.8).setScale(0.8); this.tweens.add({ targets:ring, alpha:0, scale:2.5, duration:400, ease:'Cubic.Out', onComplete:()=>ring.destroy() }); }catch(e){}
         Sfx.beep(600,0.15,'sine',0.05);
+        // Don't decrement lives if emergency repair triggered
+        return;
       }
       
-      this.livesText.setText('Lives: '+this.lives); this.burst(player.x,player.y,'particle',{speed:200, lifespan:600, scale:{start:1.4,end:0}},30,800); Sfx.playerExplosion(); if(this.lives>0){ player.disableBody(true,true); this.time.delayedCall(900,()=>{ player.enableBody(true,400,550,true,true); this.playerInvincibleUntil=this.time.now+1500; player.setAlpha(0.35);             this.tweens.add({targets:player, alpha:{from:0.35,to:1}, yoyo:true, duration:120, repeat:10, onComplete:()=>{ player.setAlpha(1.0); }}); }); } else this.gameOver('You have been defeated!'); }
+      this.lives--;
+      
+      this.livesText.setText('Lives: '+this.lives); this.burst(player.x,player.y,'particle',{speed:200, lifespan:600, scale:{start:1.4,end:0}},30,800); Sfx.playerExplosion(); 
+      console.log('[Game] Player hit - lives after hit:', this.lives);
+      console.log('[Game] Player hit - isGameOver flag:', this.isGameOver);
+      console.log('[Game] Player hit - player invincible until:', this.playerInvincibleUntil, 'current time:', this.time.now);
+      
+      if(this.lives>0){ 
+        console.log('[Game] Player still alive, respawning...');
+        player.disableBody(true,true); 
+        this.time.delayedCall(900, () => {
+          player.enableBody(true, 400, 550, true, true);
+          this.playerInvincibleUntil = this.time.now + 1500;
+          player.setAlpha(0.35);
+          this.tweens.add({
+            targets: player,
+            alpha: { from: 0.35, to: 1 },
+            yoyo: true,
+            duration: 120,
+            repeat: 10,
+            onComplete: () => { player.setAlpha(1.0); }
+          });
+        }); 
+      } else { 
+        console.log('[Game] Game over triggered: No lives remaining');
+        console.log('[Game] Game over - final lives count:', this.lives);
+        this.gameOver('You have been defeated!'); 
+      }
     }
+  }
 
   hitShield(bullet, block){
     if(!block||!block.active) return;
@@ -2617,7 +2681,18 @@ class GameScene extends Phaser.Scene{
 
   // ---------- Game over / Restart ----------
   gameOver(message){
-    if(this.isGameOver) return; this.isGameOver=true; if(this.handleRogueliteGameOver) this.handleRogueliteGameOver(message); this.player.disableBody(true,true);
+    console.log('[Game] gameOver called with message:', message);
+    console.log('[Game] gameOver - current lives:', this.lives);
+    console.log('[Game] gameOver - isGameOver flag:', this.isGameOver);
+    console.log('[Game] gameOver - stack trace:', new Error().stack);
+    
+    if(this.isGameOver) {
+      console.log('[Game] gameOver early return - already game over');
+      return;
+    }
+    this.isGameOver=true; 
+    if(this.handleRogueliteGameOver) this.handleRogueliteGameOver(message); 
+    this.player.disableBody(true,true);
     const wasHigh=this.maybeUpdateHighScore();
     const gbest = (typeof this.highGlobal==='number' && this.highGlobal>0) ? this.highGlobal : '-';
     const summary = wasHigh ?
@@ -4345,8 +4420,9 @@ class GameScene extends Phaser.Scene{
       });
     }
     
-    // Visual effect
+    // Visual effects
     this.createDashEffect();
+    this.createDashShieldEffect(level);
     
     console.log('[Game] Dash executed - level:', level, 'distance:', dashDistance, 'direction:', direction);
   }
@@ -4401,6 +4477,60 @@ class GameScene extends Phaser.Scene{
       
       this.time.delayedCall(500, () => particles.destroy());
     } catch(e) {}
+  }
+  
+  createDashShieldEffect(level) {
+    // Create shield visual effect after dash for level 2+
+    if(level < 2) return;
+    
+    try {
+      // Create shield ring around player that follows the player
+      const shield = this.add.circle(this.player.x, this.player.y, 40, 0x8844ff, 0.3);
+      shield.setStrokeStyle(3, 0x8844ff, 0.8);
+      shield.setDepth(15);
+      
+      // Make shield follow the player by updating its position in the update loop
+      const shieldUpdate = () => {
+        if(shield && shield.active) {
+          shield.x = this.player.x;
+          shield.y = this.player.y;
+        }
+      };
+      
+      // Store the update function so we can remove it later
+      if(!this.dashShieldUpdates) this.dashShieldUpdates = [];
+      this.dashShieldUpdates.push(shieldUpdate);
+      
+      // Animate the shield
+      this.tweens.add({
+        targets: shield,
+        scaleX: { from: 0.5, to: 1.2 },
+        scaleY: { from: 0.5, to: 1.2 },
+        alpha: { from: 0.8, to: 0.2 },
+        duration: 800,
+        ease: 'Power2.easeOut',
+        onComplete: () => {
+          if(shield && shield.destroy) shield.destroy();
+          // Remove the update function when shield is destroyed
+          const index = this.dashShieldUpdates.indexOf(shieldUpdate);
+          if(index > -1) this.dashShieldUpdates.splice(index, 1);
+        }
+      });
+      
+      // Add pulsing effect
+      this.tweens.add({
+        targets: shield,
+        alpha: { from: 0.3, to: 0.7 },
+        duration: 200,
+        yoyo: true,
+        repeat: 3,
+        ease: 'Sine.easeInOut'
+      });
+      
+      console.log('[Game] Dash shield effect created for level:', level);
+    } catch(e) {
+      console.warn('[Game] Failed to create dash shield effect:', e);
+    }
   }
 
   createOrbitalStrike(x) {
@@ -4461,19 +4591,42 @@ class GameScene extends Phaser.Scene{
     });
   }
   prepareRogueliteNodeSelection(){
-    if(!this.isRogueliteEnabled()) return false;
+    if(!this.isRogueliteEnabled()) {
+      console.log('[Roguelite] Node selection called but roguelite not enabled');
+      return false;
+    }
     const mgr=this.roguelite.manager;
-    if(!(mgr && mgr.previewNextNodes)) return false;
+    if(!(mgr && mgr.previewNextNodes)) {
+      console.log('[Roguelite] Manager or previewNextNodes not available');
+      return false;
+    }
+    console.log('[Roguelite] Preparing node selection...');
     this.roguelite.deferLevelStart = true;
     const token = (this.roguelite.selectionToken||0)+1;
     this.roguelite.selectionToken = token;
     mgr.previewNextNodes().then(nodes=>{
-      if(!this.isRogueliteEnabled() || this.roguelite.selectionToken!==token) return;
+      if(!this.isRogueliteEnabled() || this.roguelite.selectionToken!==token) {
+        console.log('[Roguelite] Node selection cancelled or roguelite disabled');
+        return;
+      }
       
       // Debug logging
       console.log('[Roguelite] Preview next nodes result:', nodes);
       console.log('[Roguelite] Nodes length:', nodes ? nodes.length : 'null');
       console.log('[Roguelite] Current level:', this.level);
+      
+      if (nodes && nodes.length > 0) {
+        console.log('[Roguelite] Available nodes:');
+        nodes.forEach((node, idx) => {
+          console.log(`  Node ${idx}:`, {
+            id: node.id,
+            title: node.title,
+            type: node.type,
+            modifier: node.modifier,
+            rewardPreview: node.rewardPreview
+          });
+        });
+      }
       
       if(!nodes || !nodes.length){
         console.log('[Roguelite] No more nodes available - route completing');
@@ -4485,9 +4638,11 @@ class GameScene extends Phaser.Scene{
         return;
       }
       if(nodes.length===1){
+        console.log('[Roguelite] Only one node available, auto-selecting:', nodes[0].title);
         this.finalizeRogueliteChoice(nodes[0]);
         return;
       }
+      console.log('[Roguelite] Showing choice overlay with', nodes.length, 'options');
       this.showRogueliteChoiceOverlay(nodes);
     }).catch(err=>{
       console.warn('[Roguelite] previewNextNodes failed:', err);
@@ -4599,7 +4754,10 @@ class GameScene extends Phaser.Scene{
     }
   }
   handleRogueliteLevelComplete(){
-    if(!this.isRogueliteEnabled()) return false;
+    if(!this.isRogueliteEnabled()) {
+      console.log('[Roguelite] Level complete called but roguelite not enabled');
+      return false;
+    }
     const node=this.roguelite.currentNode;
     const rp=node && node.rewardPreview ? node.rewardPreview : {};
     
@@ -4615,6 +4773,8 @@ class GameScene extends Phaser.Scene{
     console.log('  Current Node:', this.roguelite.currentNode);
     console.log('  Node rewardPreview exists:', !!(node && node.rewardPreview));
     console.log('  Node rewardPreview type:', typeof (node && node.rewardPreview));
+    console.log('  Manager available:', !!(this.roguelite && this.roguelite.manager));
+    console.log('  Manager recordWaveResult available:', !!(this.roguelite && this.roguelite.manager && this.roguelite.manager.recordWaveResult));
     
     let salvage=typeof rp.salvage==='number' ? rp.salvage : Math.max(10, Math.round(this.level*15));
     
@@ -4648,15 +4808,28 @@ class GameScene extends Phaser.Scene{
     console.log('  Label:', label);
     
     try{
+      console.log('[Roguelite] Calling recordWaveResult with:', { salvage, cores, label });
       this.roguelite.manager.recordWaveResult({ salvage, cores, label });
+      console.log('[Roguelite] recordWaveResult completed successfully');
       if(console && console.info){ console.info('[Roguelite] Level complete', { label, salvage, cores }); }
-    }catch(err){ console.warn('[Roguelite] recordWaveResult failed:', err); }
+    }catch(err){ 
+      console.warn('[Roguelite] recordWaveResult failed:', err); 
+      console.error('[Roguelite] Error details:', err);
+    }
     this.roguelite.salvageReported=(this.roguelite.salvageReported||0)+salvage;
     this.roguelite.dangerLevel = (this.roguelite.dangerLevel||0)+1;
     return this.prepareRogueliteNodeSelection();
   }
   handleRogueliteGameOver(message){
-    if(!this.isRogueliteEnabled() || this.roguelite.runCompleted) return;
+    console.log('[Roguelite] handleRogueliteGameOver called with message:', message);
+    console.log('[Roguelite] Current lives:', this.lives);
+    console.log('[Roguelite] isRogueliteEnabled:', this.isRogueliteEnabled());
+    console.log('[Roguelite] runCompleted:', this.roguelite.runCompleted);
+    
+    if(!this.isRogueliteEnabled() || this.roguelite.runCompleted) {
+      console.log('[Roguelite] handleRogueliteGameOver early return - roguelite disabled or run already completed');
+      return;
+    }
     this.closeRogueliteChoiceOverlay(true);
     this.clearRogueliteStageEffects();
     let snapshot=null;
@@ -4900,7 +5073,15 @@ class GameScene extends Phaser.Scene{
     if(this.roguelite.cargoLabel) this.roguelite.cargoLabel.setText('Escort HP: '+this.roguelite.cargoHealth);
     if(cargo.hp<=0){
       this.removeEscortCargo();
-      this.gameOver('Cargo drone destroyed!');
+      // Cargo destroyed - this is a mission failure, but player can still continue
+      // Only end the game if player has no lives left
+      if(this.lives <= 0) {
+        this.gameOver('Cargo drone destroyed!');
+      } else {
+        // Show cargo failure message but continue the game
+        this.infoPopup(this.player.x, this.player.y-50, 'Cargo destroyed! Mission failed!', '#ff4444');
+        console.log('[Game] Cargo destroyed but player still has lives, continuing game');
+      }
     }
   }
   hitCargoWithAlien(alien, cargo){
@@ -4910,7 +5091,15 @@ class GameScene extends Phaser.Scene{
     if(this.roguelite.cargoLabel) this.roguelite.cargoLabel.setText('Escort HP: '+this.roguelite.cargoHealth);
     if(cargo.hp<=0){
       this.removeEscortCargo();
-      this.gameOver('Cargo drone destroyed!');
+      // Cargo destroyed - this is a mission failure, but player can still continue
+      // Only end the game if player has no lives left
+      if(this.lives <= 0) {
+        this.gameOver('Cargo drone destroyed!');
+      } else {
+        // Show cargo failure message but continue the game
+        this.infoPopup(this.player.x, this.player.y-50, 'Cargo destroyed! Mission failed!', '#ff4444');
+        console.log('[Game] Cargo destroyed but player still has lives, continuing game');
+      }
     }
   }
   applyTradeOfferModifier(){
@@ -5122,6 +5311,51 @@ const config={
 console.log('[Game] HangarScene available:', !!window.HangarScene);
 console.log('[Game] StartScene available:', !!window.StartScene);
 console.log('[Game] ENABLE_ROGUELITE:', !!window.ENABLE_ROGUELITE);
+
+// Debug function to manually award salvage and cores for testing
+window.testRewards = function(salvage = 100, cores = 5) {
+  console.log('[Game] Testing reward system with:', { salvage, cores });
+  
+  if (window.RunManager && window.RunManager.adjustCurrencies) {
+    window.RunManager.adjustCurrencies({ salvage, cores });
+    console.log('[Game] Rewards added via RunManager');
+    
+    // Check current state
+    const meta = window.RunManager.getMeta();
+    console.log('[Game] Current meta state:', meta);
+  } else {
+    console.log('[Game] RunManager not available, using localStorage fallback');
+    try {
+      const meta = JSON.parse(localStorage.getItem('si_meta_state_v1') || '{}');
+      meta.salvage = (meta.salvage || 0) + salvage;
+      meta.cores = (meta.cores || 0) + cores;
+      localStorage.setItem('si_meta_state_v1', JSON.stringify(meta));
+      console.log('[Game] Rewards added via localStorage');
+    } catch (e) {
+      console.error('[Game] Failed to add rewards:', e);
+    }
+  }
+};
+
+// Debug function to test roguelite node selection
+window.testRogueliteNodes = function() {
+  console.log('[Game] Testing roguelite node selection...');
+  
+  if (window.__roguelite) {
+    console.log('[Game] Using roguelite debug functions');
+    window.__roguelite.preview().then(nodes => {
+      console.log('[Game] Available nodes:', nodes);
+      if (nodes && nodes.length > 0) {
+        console.log('[Game] Node details:');
+        nodes.forEach((node, idx) => {
+          console.log(`  ${idx}: ${node.title} (${node.type}) - ${node.modifier || 'No modifier'}`);
+        });
+      }
+    });
+  } else {
+    console.log('[Game] Roguelite debug functions not available');
+  }
+};
 
 // Ensure StartScene is available before creating the game
 if (!window.StartScene) {
