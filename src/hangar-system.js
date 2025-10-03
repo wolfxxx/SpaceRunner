@@ -823,15 +823,6 @@ class HangarScene extends Phaser.Scene {
     const startY = height/2 - 80; // Position higher to avoid footer interference
     const meta = this.getMetaState();
     
-    // Add a simple header to test text rendering
-    const headerText = this.add.text(width/2, 100, 'ABILITIES', {
-      fontFamily: 'monospace',
-      fontSize: '24px',
-      color: '#ffffff'
-    }).setOrigin(0.5).setDepth(50);
-    
-    this.contentContainer.add(headerText);
-    
     // Abilities grid
     const abilityKeys = Object.keys(ACTIVE_ABILITIES);
     
@@ -892,23 +883,31 @@ class HangarScene extends Phaser.Scene {
       
       this.contentContainer.add(statsText);
 
-      // Simple status text
-      const statusText = this.add.text(x, y + 20, isUnlocked ? 'UNLOCKED' : 'LOCKED', {
-        fontFamily: 'monospace',
-        fontSize: '14px',
-        color: isUnlocked ? '#00ff00' : '#ff6666'
-      }).setOrigin(0.5).setDepth(40);
-      
-      this.contentContainer.add(statusText);
-
-      // Add unlock button if not unlocked
+      // Level display - show current and next level clearly
       if (!isUnlocked) {
+        // Not unlocked yet - show unlock cost
         const cost = ability.unlockCost;
         const currency = ability.unlockCurrency;
-        const canAfford = (meta[currency] || 0) >= cost;
+        const canAffordCost = (meta[currency] || 0) >= cost;
         
-        if (canAfford) {
-          const unlockBtn = this.add.text(x, y + 40, '[UNLOCK]', {
+        const levelText = this.add.text(x, y + 20, `Level 0/${ability.maxLevel}`, {
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          color: '#ff6666'
+        }).setOrigin(0.5).setDepth(40);
+        
+        this.contentContainer.add(levelText);
+        
+        const costText = this.add.text(x, y + 35, `Unlock: ${cost} ${currency}`, {
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          color: canAffordCost ? '#00ff00' : '#ff6666'
+        }).setOrigin(0.5).setDepth(40);
+        
+        this.contentContainer.add(costText);
+        
+        if (canAffordCost) {
+          const unlockBtn = this.add.text(x, y + 50, '[UNLOCK]', {
             fontFamily: 'monospace',
             fontSize: '12px',
             color: '#ffffff'
@@ -918,6 +917,57 @@ class HangarScene extends Phaser.Scene {
           
           this.contentContainer.add(unlockBtn);
         }
+      } else if (currentLevel < ability.maxLevel) {
+        // Unlocked but can be upgraded
+        const nextLevel = currentLevel + 1;
+        const upgradeCost = ability.upgradeCosts[currentLevel - 1];
+        const currency = ability.unlockCurrency;
+        const canAffordUpgrade = (meta[currency] || 0) >= upgradeCost;
+        
+        const levelText = this.add.text(x, y + 20, `Level ${currentLevel}/${ability.maxLevel}`, {
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          color: '#00ff00'
+        }).setOrigin(0.5).setDepth(40);
+        
+        this.contentContainer.add(levelText);
+        
+        const nextLevelText = this.add.text(x, y + 35, `Next: Level ${nextLevel} (${upgradeCost} ${currency})`, {
+          fontFamily: 'monospace',
+          fontSize: '11px',
+          color: canAffordUpgrade ? '#00ff00' : '#ff6666'
+        }).setOrigin(0.5).setDepth(40);
+        
+        this.contentContainer.add(nextLevelText);
+        
+        if (canAffordUpgrade) {
+          const upgradeBtn = this.add.text(x, y + 50, '[UPGRADE]', {
+            fontFamily: 'monospace',
+            fontSize: '12px',
+            color: '#ffffff'
+          }).setOrigin(0.5).setInteractive({ useHandCursor: true })
+          .setDepth(40)
+          .on('pointerdown', () => this.upgradeAbility(abilityKey, upgradeCost));
+          
+          this.contentContainer.add(upgradeBtn);
+        }
+      } else {
+        // Max level reached
+        const levelText = this.add.text(x, y + 20, `Level ${currentLevel}/${ability.maxLevel}`, {
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          color: '#00ff00'
+        }).setOrigin(0.5).setDepth(40);
+        
+        this.contentContainer.add(levelText);
+        
+        const maxText = this.add.text(x, y + 35, 'MAX LEVEL', {
+          fontFamily: 'monospace',
+          fontSize: '12px',
+          color: '#ffaa00'
+        }).setOrigin(0.5).setDepth(40);
+        
+        this.contentContainer.add(maxText);
       }
     });
   }
