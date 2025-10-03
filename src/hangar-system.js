@@ -519,6 +519,13 @@ class HangarScene extends Phaser.Scene {
     const objectCount = this.contentContainer.length;
     console.log(`[Hangar] Removing ${objectCount} objects from content container`);
     
+    // Reset loadout scroll variables
+    this.loadoutScrollContainer = null;
+    this.loadoutScrollY = 0;
+    this.loadoutMaxScroll = 0;
+    this.loadoutScrollTop = null;
+    this.loadoutScrollBottom = null;
+    
     // Only clear content from the content container - this is the safe way
     this.contentContainer.removeAll(true);
     
@@ -816,6 +823,15 @@ class HangarScene extends Phaser.Scene {
     const startY = height/2 - 80; // Position higher to avoid footer interference
     const meta = this.getMetaState();
     
+    // Add a simple header to test text rendering
+    const headerText = this.add.text(width/2, 100, 'ABILITIES', {
+      fontFamily: 'monospace',
+      fontSize: '24px',
+      color: '#ffffff'
+    }).setOrigin(0.5).setDepth(50);
+    
+    this.contentContainer.add(headerText);
+    
     // Abilities grid
     const abilityKeys = Object.keys(ACTIVE_ABILITIES);
     
@@ -840,103 +856,69 @@ class HangarScene extends Phaser.Scene {
         comparison: `${meta[ability.unlockCurrency]} >= ${ability.unlockCost} = ${canAfford}`
       });
       
-      // Ability card - larger to prevent overlap
-      const cardBg = this.add.rectangle(x, y, 280, 120, 0x332244, 0.8)
-        .setStrokeStyle(2, isUnlocked ? 0x8844ff : (canAfford ? 0x00ff88 : 0x444444))
+      // Ability card - simple background
+      const cardBg = this.add.rectangle(x, y, 280, 120, 0x000000, 0.8)
+        .setStrokeStyle(2, 0xffffff)
         .setDepth(20);
 
-      // Ability name - bright if unlocked or affordable
-      const nameColor = isUnlocked ? '#ffffff' : (canAfford ? '#00ff00' : '#888888');
-      console.log('[Hangar] Ability name color for', abilityKey, ':', nameColor, '(isUnlocked:', isUnlocked, ', canAfford:', canAfford, ')');
+      // Add card to container first
+      this.contentContainer.add(cardBg);
+
+      // Ability name - very simple text with high contrast
       const nameText = this.add.text(x, y - 40, ability.name, {
         fontFamily: 'monospace',
-        fontSize: '16px',
-        color: nameColor
-      }).setOrigin(0.5).setDepth(30);
+        fontSize: '18px',
+        color: '#ffffff'
+      }).setOrigin(0.5).setDepth(40);
       
       this.contentContainer.add(nameText);
 
-      // Description - bright if unlocked or affordable
-      const descColor = isUnlocked ? '#cccccc' : (canAfford ? '#88ff88' : '#777777');
-      console.log('[Hangar] Ability description color for', abilityKey, ':', descColor, '(isUnlocked:', isUnlocked, ', canAfford:', canAfford, ')');
+      // Description - simple text
       const descText = this.add.text(x, y - 20, ability.description, {
         fontFamily: 'monospace',
-        fontSize: '11px',
-        color: descColor,
+        fontSize: '12px',
+        color: '#cccccc',
         wordWrap: { width: 260 }
-      }).setOrigin(0.5).setDepth(30);
+      }).setOrigin(0.5).setDepth(40);
       
       this.contentContainer.add(descText);
 
-      // Stats - bright if unlocked or affordable
+      // Stats - simple text
       const statsText = this.add.text(x, y, `Cooldown: ${ability.cooldown}s | Energy: ${ability.energyCost}`, {
         fontFamily: 'monospace',
-        fontSize: '10px',
-        color: isUnlocked ? '#aaaaaa' : (canAfford ? '#88ff88' : '#666666')
-      }).setOrigin(0.5).setDepth(30);
+        fontSize: '11px',
+        color: '#aaaaaa'
+      }).setOrigin(0.5).setDepth(40);
       
       this.contentContainer.add(statsText);
 
-      // Unlock/Upgrade button
+      // Simple status text
+      const statusText = this.add.text(x, y + 20, isUnlocked ? 'UNLOCKED' : 'LOCKED', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: isUnlocked ? '#00ff00' : '#ff6666'
+      }).setOrigin(0.5).setDepth(40);
+      
+      this.contentContainer.add(statusText);
+
+      // Add unlock button if not unlocked
       if (!isUnlocked) {
         const cost = ability.unlockCost;
         const currency = ability.unlockCurrency;
         const canAfford = (meta[currency] || 0) >= cost;
         
-        const unlockText = this.add.text(x, y + 20, `Unlock: ${cost} ${currency}`, {
-          fontFamily: 'monospace',
-          fontSize: '12px',
-          color: canAfford ? '#00ff00' : '#ff6666'
-        }).setOrigin(0.5).setDepth(30);
-        
-        this.contentContainer.add(unlockText);
-
         if (canAfford) {
           const unlockBtn = this.add.text(x, y + 40, '[UNLOCK]', {
             fontFamily: 'monospace',
             fontSize: '12px',
-            color: '#00ff00'
+            color: '#ffffff'
           }).setOrigin(0.5).setInteractive({ useHandCursor: true })
           .setDepth(40)
           .on('pointerdown', () => this.unlockAbility(abilityKey));
           
           this.contentContainer.add(unlockBtn);
         }
-      } else if (currentLevel < ability.maxLevel) {
-        const cost = ability.upgradeCosts[currentLevel - 1]; // Fix: currentLevel-1 because array is 0-indexed
-        const currency = ability.unlockCurrency; // Use the same currency as unlock (cores)
-        const canAfford = (meta[currency] || 0) >= cost;
-        
-        const upgradeText = this.add.text(x, y + 20, `Level ${currentLevel + 1}/${ability.maxLevel} (${cost} ${currency})`, {
-          fontFamily: 'monospace',
-          fontSize: '12px',
-          color: canAfford ? '#00ff00' : '#ff6666'
-        }).setOrigin(0.5).setDepth(30);
-        
-        this.contentContainer.add(upgradeText);
-
-        if (canAfford) {
-          const upgradeBtn = this.add.text(x, y + 40, '[UPGRADE]', {
-            fontFamily: 'monospace',
-            fontSize: '12px',
-            color: '#00ff00'
-          }).setOrigin(0.5).setInteractive({ useHandCursor: true })
-          .setDepth(40)
-          .on('pointerdown', () => this.upgradeAbility(abilityKey, cost));
-          
-          this.contentContainer.add(upgradeBtn);
-        }
-      } else {
-        const maxText = this.add.text(x, y + 20, `Level ${currentLevel}/${ability.maxLevel} - MAX`, {
-          fontFamily: 'monospace',
-          fontSize: '12px',
-          color: '#ffaa00'
-        }).setOrigin(0.5).setDepth(30);
-        
-        this.contentContainer.add(maxText);
       }
-
-      this.contentContainer.add(cardBg);
     });
   }
 
@@ -944,6 +926,14 @@ class HangarScene extends Phaser.Scene {
     const { width, height } = this.scale;
     const startY = height/2 - 120; // Position higher to avoid footer interference
     const meta = this.getMetaState();
+    
+    // Create scroll container for loadout content
+    this.loadoutScrollContainer = this.add.container(0, 0);
+    this.contentContainer.add(this.loadoutScrollContainer);
+    
+    // Initialize scroll variables
+    this.loadoutScrollY = 0;
+    this.loadoutMaxScroll = 0;
     
     // Current ship display
     const ship = SHIP_VARIANTS[this.selectedShip];
@@ -953,7 +943,7 @@ class HangarScene extends Phaser.Scene {
       color: '#00ffff'
     }).setOrigin(0.5).setDepth(30);
     
-    this.contentContainer.add(shipText);
+    this.loadoutScrollContainer.add(shipText);
 
     // Ship stats display
     const statsText = this.add.text(width/2, startY + 30, `Speed: ${ship.stats.speed} | Health: ${ship.stats.health} | Shields: ${ship.stats.shieldCapacity}`, {
@@ -962,7 +952,7 @@ class HangarScene extends Phaser.Scene {
       color: '#aaaaaa'
     }).setOrigin(0.5).setDepth(30);
     
-    this.contentContainer.add(statsText);
+    this.loadoutScrollContainer.add(statsText);
 
     // Active upgrades section
     const upgradesY = startY + 80;
@@ -972,7 +962,7 @@ class HangarScene extends Phaser.Scene {
       color: '#ffffff'
     }).setOrigin(0.5).setDepth(30);
     
-    this.contentContainer.add(upgradesHeader);
+    this.loadoutScrollContainer.add(upgradesHeader);
 
     let upgradeY = upgradesY + 40;
     let hasUpgrades = false;
@@ -992,7 +982,7 @@ class HangarScene extends Phaser.Scene {
             .setStrokeStyle(1, 0x00ff00)
             .setDepth(20);
           
-          this.contentContainer.add(cardBg);
+          this.loadoutScrollContainer.add(cardBg);
           
           const upgradeNameText = this.add.text(width/2, upgradeY, `${upgrade.name} (Level ${level})`, {
             fontFamily: 'monospace',
@@ -1000,7 +990,7 @@ class HangarScene extends Phaser.Scene {
             color: '#00ff00'
           }).setOrigin(0.5).setDepth(30);
           
-          this.contentContainer.add(upgradeNameText);
+          this.loadoutScrollContainer.add(upgradeNameText);
           
           const upgradeEffectText = this.add.text(width/2, upgradeY + 15, upgrade.effects[level - 1], {
             fontFamily: 'monospace',
@@ -1008,7 +998,7 @@ class HangarScene extends Phaser.Scene {
             color: '#aaaaaa'
           }).setOrigin(0.5).setDepth(30);
           
-          this.contentContainer.add(upgradeEffectText);
+          this.loadoutScrollContainer.add(upgradeEffectText);
           
           upgradeY += 50;
         }
@@ -1022,7 +1012,7 @@ class HangarScene extends Phaser.Scene {
         color: '#666666'
       }).setOrigin(0.5).setDepth(30);
       
-      this.contentContainer.add(noUpgradesText);
+      this.loadoutScrollContainer.add(noUpgradesText);
     }
 
     // Active abilities section
@@ -1033,7 +1023,7 @@ class HangarScene extends Phaser.Scene {
       color: '#ffffff'
     }).setOrigin(0.5).setDepth(30);
     
-    this.contentContainer.add(abilitiesHeader);
+    this.loadoutScrollContainer.add(abilitiesHeader);
 
     let abilityY = abilitiesY + 40;
     let hasAbilities = false;
@@ -1051,7 +1041,7 @@ class HangarScene extends Phaser.Scene {
           .setStrokeStyle(1, 0x8844ff)
           .setDepth(20);
         
-        this.contentContainer.add(cardBg);
+        this.loadoutScrollContainer.add(cardBg);
         
         const abilityNameText = this.add.text(width/2, abilityY, `${ability.name} (Level ${level})`, {
           fontFamily: 'monospace',
@@ -1059,7 +1049,7 @@ class HangarScene extends Phaser.Scene {
           color: '#8844ff'
         }).setOrigin(0.5).setDepth(30);
         
-        this.contentContainer.add(abilityNameText);
+        this.loadoutScrollContainer.add(abilityNameText);
         
         const abilityEffectText = this.add.text(width/2, abilityY + 15, ability.effects[level - 1], {
           fontFamily: 'monospace',
@@ -1067,7 +1057,7 @@ class HangarScene extends Phaser.Scene {
           color: '#aaaaaa'
         }).setOrigin(0.5).setDepth(30);
         
-        this.contentContainer.add(abilityEffectText);
+        this.loadoutScrollContainer.add(abilityEffectText);
         
         abilityY += 50;
       }
@@ -1080,8 +1070,75 @@ class HangarScene extends Phaser.Scene {
         color: '#666666'
       }).setOrigin(0.5).setDepth(30);
       
-      this.contentContainer.add(noAbilitiesText);
+      this.loadoutScrollContainer.add(noAbilitiesText);
     }
+    
+    // Calculate maximum scroll distance
+    this.loadoutMaxScroll = Math.max(0, abilityY + 100 - (height - 100));
+    
+    // Add scroll indicators if content is scrollable
+    if (this.loadoutMaxScroll > 0) {
+      // Top scroll indicator
+      this.loadoutScrollTop = this.add.text(width/2, 70, '↑', {
+        fontFamily: 'monospace',
+        fontSize: '20px',
+        color: '#00ffff'
+      }).setOrigin(0.5).setDepth(102);
+      
+      this.contentContainer.add(this.loadoutScrollTop);
+      
+      // Bottom scroll indicator
+      this.loadoutScrollBottom = this.add.text(width/2, height - 80, '↓', {
+        fontFamily: 'monospace',
+        fontSize: '20px',
+        color: '#00ffff'
+      }).setOrigin(0.5).setDepth(102);
+      
+      this.contentContainer.add(this.loadoutScrollBottom);
+    }
+    
+    // Add keyboard scroll controls
+    this.input.keyboard.on('keydown-DOWN', () => {
+      if (this.loadoutMaxScroll > 0) {
+        this.loadoutScrollY = Math.min(this.loadoutMaxScroll, this.loadoutScrollY + 30);
+        this.loadoutScrollContainer.y = -this.loadoutScrollY;
+        this.updateLoadoutScrollIndicators();
+      }
+    });
+    
+    this.input.keyboard.on('keydown-UP', () => {
+      if (this.loadoutMaxScroll > 0) {
+        this.loadoutScrollY = Math.max(0, this.loadoutScrollY - 30);
+        this.loadoutScrollContainer.y = -this.loadoutScrollY;
+        this.updateLoadoutScrollIndicators();
+      }
+    });
+    
+    // Add mouse wheel scrolling
+    this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY, deltaZ) => {
+      if (this.loadoutMaxScroll > 0) {
+        if (deltaY > 0) {
+          // Scroll down
+          this.loadoutScrollY = Math.min(this.loadoutMaxScroll, this.loadoutScrollY + 40);
+        } else if (deltaY < 0) {
+          // Scroll up
+          this.loadoutScrollY = Math.max(0, this.loadoutScrollY - 40);
+        }
+        this.loadoutScrollContainer.y = -this.loadoutScrollY;
+        this.updateLoadoutScrollIndicators();
+      }
+    });
+    
+    // Initial scroll indicator update
+    this.updateLoadoutScrollIndicators();
+  }
+  
+  updateLoadoutScrollIndicators() {
+    if (!this.loadoutScrollTop || !this.loadoutScrollBottom) return;
+    
+    // Show/hide indicators based on scroll position
+    this.loadoutScrollTop.setVisible(this.loadoutScrollY > 0);
+    this.loadoutScrollBottom.setVisible(this.loadoutScrollY < this.loadoutMaxScroll);
   }
 
   selectShip(shipKey) {

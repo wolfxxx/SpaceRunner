@@ -1399,14 +1399,13 @@ class GameScene extends Phaser.Scene{
   // More defensive countdown: store end time and auto-resume if needed
   startLevelCountdown(){
     console.log('[GameScene] startLevelCountdown() called');
-    // Only manage the visible label; gating derives from countdown timing in update()
-    const q = this.getQualityLevel ? this.getQualityLevel() : 0;
-    const base = (q>=2 ? 250 : 700); // compress countdown on Low
+    // Fixed countdown timing - independent of quality settings for consistency
+    const base = 800; // Consistent 800ms per step regardless of quality
     const seq = [[0,`Level ${this.level}`],[base,'3'],[base*2,'2'],[base*3,'1'],[base*4,'GO!']];
     const t0 = Date.now(); this._countdownStartedAt = t0; this._countdownMaxMs = base*5 + 400; this._countdownDone = false;
     // Gate gameplay immediately until countdown finishes
     try{ this.countdownEndsAt = this.time.now + base*5; this.lastFired = this.time.now + base*5; }catch(e){ this.countdownEndsAt = 1e12; }
-    console.log('[GameScene] Countdown set - ends at:', this.countdownEndsAt, 'current time:', this.time.now);
+    console.log('[GameScene] Countdown set - ends at:', this.countdownEndsAt, 'current time:', this.time.now, 'base timing:', base);
     // Set initial label immediately to avoid a brief ungated window
     try{ this.infoText.setText(`Level ${this.level}`); }catch(e){}
     // Track timers to allow clean skip without stray label updates
@@ -4484,14 +4483,21 @@ class GameScene extends Phaser.Scene{
     if(level < 2) return;
     
     try {
+      // Validate player position before creating shield
+      if(!this.player || typeof this.player.x !== 'number' || typeof this.player.y !== 'number' || 
+         isNaN(this.player.x) || isNaN(this.player.y)) {
+        console.warn('[Game] Invalid player position for shield creation:', this.player?.x, this.player?.y);
+        return;
+      }
+      
       // Create shield ring around player that follows the player
-      const shield = this.add.circle(this.player.x, this.player.y, 40, 0x8844ff, 0.3);
-      shield.setStrokeStyle(3, 0x8844ff, 0.8);
-      shield.setDepth(15);
+      const shield = this.add.circle(this.player.x, this.player.y, 40, 0x8844ff, 0.4);
+      shield.setStrokeStyle(4, 0x8844ff, 0.9);
+      shield.setDepth(20); // Higher depth to ensure visibility
       
       // Make shield follow the player by updating its position in the update loop
       const shieldUpdate = () => {
-        if(shield && shield.active) {
+        if(shield && shield.active && this.player) {
           shield.x = this.player.x;
           shield.y = this.player.y;
         }
@@ -4501,35 +4507,40 @@ class GameScene extends Phaser.Scene{
       if(!this.dashShieldUpdates) this.dashShieldUpdates = [];
       this.dashShieldUpdates.push(shieldUpdate);
       
-      // Animate the shield
+      // Create a more robust animation sequence
+      // First: Expand and fade out
       this.tweens.add({
         targets: shield,
-        scaleX: { from: 0.5, to: 1.2 },
-        scaleY: { from: 0.5, to: 1.2 },
-        alpha: { from: 0.8, to: 0.2 },
-        duration: 800,
+        scaleX: { from: 0.3, to: 1.5 },
+        scaleY: { from: 0.3, to: 1.5 },
+        alpha: { from: 1.0, to: 0.1 },
+        duration: 1000,
         ease: 'Power2.easeOut',
         onComplete: () => {
-          if(shield && shield.destroy) shield.destroy();
-          // Remove the update function when shield is destroyed
-          const index = this.dashShieldUpdates.indexOf(shieldUpdate);
-          if(index > -1) this.dashShieldUpdates.splice(index, 1);
+          if(shield && shield.destroy) {
+            shield.destroy();
+            // Remove the update function when shield is destroyed
+            const index = this.dashShieldUpdates.indexOf(shieldUpdate);
+            if(index > -1) this.dashShieldUpdates.splice(index, 1);
+          }
         }
       });
       
-      // Add pulsing effect
+      // Add a subtle pulsing effect that doesn't conflict with the main animation
       this.tweens.add({
         targets: shield,
-        alpha: { from: 0.3, to: 0.7 },
-        duration: 200,
+        alpha: { from: 0.4, to: 0.8 },
+        duration: 150,
         yoyo: true,
-        repeat: 3,
-        ease: 'Sine.easeInOut'
+        repeat: 4,
+        ease: 'Sine.easeInOut',
+        delay: 100 // Small delay to avoid immediate conflict
       });
       
-      console.log('[Game] Dash shield effect created for level:', level);
+      console.log('[Game] Dash shield effect created for level:', level, 'at position:', this.player.x, this.player.y);
     } catch(e) {
-      console.warn('[Game] Failed to create dash shield effect:', e);
+      console.error('[Game] Failed to create dash shield effect:', e);
+      console.error('[Game] Player state:', this.player);
     }
   }
 
